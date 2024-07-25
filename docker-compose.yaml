@@ -1,0 +1,72 @@
+
+services:
+  envoy-proxy:
+    image: envoyproxy/envoy-debug-dev:latest
+    entrypoint: "/usr/local/bin/envoy"
+    command:
+      - "--config-path /etc/envoy/envoy.yaml"
+      - "--log-level info"
+    volumes:
+      - ./proxy.yaml:/etc/envoy/envoy.yaml
+    networks:
+      - xds-network
+    expose:
+      - "8888"
+      - "8001"
+    ports:
+      - "18888:8888"
+      - "17000:7000"
+  xds:
+    image: xds:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    expose:
+      - "18000"
+      - "18001"
+    volumes:
+      - ./config:/config
+    ports:
+      - "18000:18000"
+      - "18001:18001"
+    networks:
+      - xds-network
+  redis:
+    image: redis:alpine
+    expose:
+      - 6379
+    ports:
+      - "16379:6379"
+    networks:
+      - xds-network
+  ratelimit:
+    image: envoyproxy/ratelimit:master
+    command: /bin/ratelimit
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    environment:
+      - USE_STATSD=false
+      - REDIS_SOCKET_TYPE=tcp
+      - REDIS_URL=redis:6379
+      - CONFIG_TYPE=GRPC_XDS_SOTW
+      - CONFIG_GRPC_XDS_SERVER_URL=xds:18001
+      - CONFIG_GRPC_XDS_NODE_ID=test-id
+      - LOG_LEVEL=debug
+      - LOG_FORMAT=json
+    volumes:
+      - ./config:/data/ratelimit/config
+    depends_on:
+      - redis
+      - xds
+    ports:
+      - 18081:8081
+      - 18080:8080
+    networks:
+      - xds-network
+  mock:
+    image: ealen/echo-server:0.9.2
+    networks:
+      - xds-network
+
+networks:
+  xds-network:

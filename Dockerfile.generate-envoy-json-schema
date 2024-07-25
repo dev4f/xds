@@ -1,0 +1,36 @@
+##!bash docker buildx build --output type=local,dest=./out .
+#FROM archlinux as envoy_schema_builder
+#
+#RUN pacman -Syyu --noconfirm
+#RUN pacman -Sy git gcc --noconfirm
+#RUN curl -Lo /usr/local/bin/bazel https://github.com/bazelbuild/bazelisk/releases/download/v1.20.0/bazelisk-linux-amd64
+#RUN chmod +x /usr/local/bin/bazel
+#
+#RUN useradd envoy
+#RUN mkdir /home/envoy
+#RUN chown envoy:envoy /home/envoy
+#
+#USER envoy
+#RUN cd /home/envoy/ && pwd && git clone --depth 1 https://github.com/envoyproxy/envoy code
+#RUN cd /home/envoy/code && bazel build tools/protojsonschema_with_aspects:api_protojsonschema
+#
+#USER root
+#RUN chmod -R 777 /home/envoy/code/bazel-bin
+
+FROM golang:1.19-alpine as envoy_ratelimit_schema_builder
+
+RUN go install github.com/pubg/protoc-gen-jsonschema
+RUN git clone --depth 1 https://github.com/envoyproxy/ratelimit code
+
+RUN protoc --jsonschema_out=/home/envoy. code/api/ratelimit/config/ratelimit/v3/rls_conf.proto
+
+RUN chmod -R 777 /home/envoy/
+
+#Stage 2: Copy files to scratch image
+#FROM scratch AS export
+#
+#COPY --from=envoy_schema_builder /home/envoy/code/bazel-bin/external/envoy_api/envoy/config/bootstrap/v3/jsonschema/Bootstrap.json .
+#COPY --from=envoy_schema_builder /home/envoy/code/bazel-bin/external/envoy_api/envoy/config/cluster/v3/jsonschema/Cluster.json .
+#COPY --from=envoy_schema_builder /home/envoy/code/bazel-bin/external/envoy_api/envoy/config/endpoint/v3/jsonschema/Endpoint.json .
+#COPY --from=envoy_schema_builder /home/envoy/code/bazel-bin/external/envoy_api/envoy/config/listener/v3/jsonschema/Listener.json .
+#COPY --from=envoy_schema_builder /home/envoy/code/bazel-bin/external/envoy_api/envoy/config/route/v3/jsonschema/Route.json .

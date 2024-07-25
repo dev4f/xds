@@ -1,0 +1,29 @@
+---
+name: mock_cluster
+connect_timeout: 0.25s
+lb_policy: ROUND_ROBIN
+type: STRICT_DNS
+load_assignment:
+  cluster_name: mock_cluster
+  endpoints:
+    - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: mock
+                port_value: 80
+---
+name: ratelimit
+connect_timeout: 0.25s
+lb_policy: ROUND_ROBIN
+type: STRICT_DNS
+http2_protocol_options: {}
+load_assignment:
+  cluster_name: ratelimit
+  endpoints:
+    - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: ratelimit
+                port_value: 8081

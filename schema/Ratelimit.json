@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RateLimitConfig",
+  "$ref": "#/definitions/ratelimit.config.ratelimit.v3.RateLimitConfig",
+  "definitions": {
+    "ratelimit.config.ratelimit.v3.RateLimitConfig": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the rate limit configuration. This should be unique for each configuration."
+        },
+        "domain": {
+          "type": "string",
+          "description": "Domain name for the rate limit configuration."
+        },
+        "descriptors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ratelimit.config.ratelimit.v3.RateLimitDescriptor"
+          }
+        }
+      }
+    },
+    "ratelimit.config.ratelimit.v3.RateLimitDescriptor": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Key of the descriptor."
+        },
+        "value": {
+          "type": "string",
+          "description": "Optional value of the descriptor."
+        },
+        "rate_limit": {
+          "$ref": "#/definitions/ratelimit.config.ratelimit.v3.RateLimitPolicy"
+        },
+        "descriptors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ratelimit.config.ratelimit.v3.RateLimitDescriptor"
+          }
+        },
+        "shadow_mode": {
+          "type": "boolean",
+          "description": "Mark the descriptor as shadow. When the values is true, rate limit service allow requests to the backend."
+        },
+        "detailed_metric": {
+          "type": "boolean",
+          "description": "Setting the `detailed_metric: true` for a descriptor will extend the metrics that are produced."
+        }
+      }
+    },
+    "ratelimit.config.ratelimit.v3.RateLimitPolicy": {
+      "type": "object",
+      "properties": {
+        "unit": {
+          "$ref": "#/definitions/ratelimit.config.ratelimit.v3.RateLimitUnit"
+        },
+        "requests_per_unit": {
+          "type": "integer",
+          "description": "Number of requests allowed in the policy within `unit` time."
+        },
+        "unlimited": {
+          "type": "boolean",
+          "description": "Mark the rate limit policy as unlimited. All requests are allowed to the backend."
+        },
+        "name": {
+          "type": "string",
+          "description": "Optional name for the rate limit policy. Name the policy, if it should be replaced (dropped evaluation) by another policy."
+        },
+        "replaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ratelimit.config.ratelimit.v3.RateLimitReplace"
+          },
+          "description": "List of rate limit policies, this rate limit policy will replace (drop evaluation)."
+        }
+      }
+    },
+    "ratelimit.config.ratelimit.v3.RateLimitReplace": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the rate limit policy, that is being replaced (dropped evaluation)."
+        }
+      }
+    },
+    "ratelimit.config.ratelimit.v3.RateLimitUnit": {
+      "type": "string",
+      "enum": ["UNKNOWN", "SECOND", "MINUTE", "HOUR", "DAY"],
+      "description": "Identifies the unit of time for rate limit."
+    }
+  },
+  "required": ["name", "domain", "descriptors"]
+}

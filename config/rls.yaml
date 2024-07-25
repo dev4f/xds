@@ -1,0 +1,13 @@
+---
+name: rl
+domain: rl
+descriptors:
+  - key: remote_address
+    rate_limit:
+      unit: SECOND
+      requests_per_unit: 5
+    descriptors:
+      - key: path
+        rate_limit:
+          unit: MINUTE
+          requests_per_unit: 20

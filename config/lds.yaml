@@ -1,0 +1,62 @@
+---
+name: listener_test
+address:
+  socket_address:
+    address: 0.0.0.0
+    port_value: 8888
+filter_chains:
+  - filters:
+    - name: envoy.filters.network.http_connection_manager
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+        access_log:
+          - name: envoy.access_loggers.stdout
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+              log_format:
+                json_format:
+                  timestamp: "%START_TIME%"
+                  trace_id: "%REQ(X-REQUEST-ID)%"
+                  http_code: "%RESPONSE_CODE%"
+                  path: "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%"
+                  method: "%REQ(:METHOD)%"
+                  duration: "%DURATION%"
+                  ip: "%DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%"
+                  logger: "envoy"
+        stat_prefix: ingress_http
+        codec_type: AUTO
+        http_filters:
+          - name: envoy.filters.http.ratelimit
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.ratelimit.v3.RateLimit
+              domain: rl
+              request_type: external
+              stage: 0
+              rate_limited_as_resource_exhausted: true
+              failure_mode_deny: true
+              enable_x_ratelimit_headers: DRAFT_VERSION_03
+              rate_limit_service:
+                grpc_service:
+                  envoy_grpc:
+                    cluster_name: ratelimit
+                transport_api_version: V3
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+        route_config:
+          name: default
+          virtual_hosts:
+            - name: abc
+              domains:
+                - "*"
+              routes:
+                - match:
+                    prefix: /
+                  route:
+                    cluster: mock_cluster
+                    rate_limits:
+                      - actions:
+                          - remote_address: {}  # rate limit by IP
+                          - request_headers:
+                              header_name: ":path" # rate limit by path
+                              descriptor_key: "path"
