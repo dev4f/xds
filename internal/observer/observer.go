@@ -1,10 +1,10 @@
 package observer
 
 import (
-	"github.com/radovskyb/watcher"
+	"github.com/fsnotify/fsnotify"
 	log "github.com/sirupsen/logrus"
-	"regexp"
 	"strings"
+	"time"
 	"xDS/internal/constant"
 )
 
@@ -34,7 +34,7 @@ func (n NotifyMessage) OperationName() string {
 }
 
 func (n NotifyMessage) IsNotSupported() bool {
-	return !n.IsLds() && !n.IsRds() && !n.IsRls() && !n.IsEds()
+	return !n.IsLds() && !n.IsCds() && !n.IsRds() && !n.IsRls() && !n.IsEds()
 }
 
 func (n NotifyMessage) IsLds() bool {
@@ -54,76 +54,76 @@ func (n NotifyMessage) IsEds() bool {
 }
 
 func (n NotifyMessage) IsCds() bool {
-	return strings.HasSuffix(n.FilePath, "cds.yaml")
+	return strings.HasSuffix(n.FilePath, constant.ClusterFileSuffix)
 }
 
 func Watch(directory string, notifyCh chan<- NotifyMessage) {
+	watcher, err := fsnotify.NewWatcher()
 
-	w := watcher.New()
-	w.SetMaxEvents(1)
-	w.FilterOps(
-		watcher.Create,
-		watcher.Write,
-		watcher.Rename,
-		watcher.Move,
-	)
-
-	// Only files that match the regular expression during file listings
-	// will be watched.
-	r := regexp.MustCompile(`^.*\.yaml$`)
-	w.AddFilterHook(watcher.RegexFilterHook(r, false))
-
-	defer w.Close()
-
-	done := make(chan bool)
-	go func() {
-		for {
-			select {
-			case event := <-w.Event:
-				notifyCh <- NotifyMessage{
-					Operation: Modify,
-					FilePath:  event.Path,
-				}
-			case err := <-w.Error:
-				log.Errorf("watcher error: %v\n", err)
-			case <-w.Closed:
-				return
-			}
-			//select {
-			//case event, ok := <-watcher.Events:
-			//	if !ok {
-			//		return
-			//	}
-			//	if event.Op&fsnotify.Write == fsnotify.Write {
-			//		notifyCh <- NotifyMessage{
-			//			Operation: Modify,
-			//			FilePath:  event.Name,
-			//		}
-			//	} else if event.Op&fsnotify.Create == fsnotify.Create {
-			//		notifyCh <- NotifyMessage{
-			//			Operation: Create,
-			//			FilePath:  event.Name,
-			//		}
-			//	} else if event.Op&fsnotify.Remove == fsnotify.Remove {
-			//		notifyCh <- NotifyMessage{
-			//			Operation: Remove,
-			//			FilePath:  event.Name,
-			//		}
-			//	}
-			//
-			//case err, ok := <-watcher.Errors:
-			//	if !ok {
-			//		return
-			//	}
-			//	log.Println("error:", err)
-			//}
-		}
-	}()
-
-	err := w.Add(directory)
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer watcher.Close()
 
+	done := make(chan bool)
+	go func() {
+		var (
+			timer  *time.Timer
+			events = make(map[string]fsnotify.Event)
+		)
+		timer = time.NewTimer(time.Millisecond)
+		<-timer.C // timer should be expired at first
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+				log.Infof("event: %v", event)
+				// override event for the same file
+				eventId := event.Name + event.Op.String()
+				events[eventId] = event
+				timer.Reset(time.Millisecond * 100)
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+				log.Error(err)
+
+			case <-timer.C:
+
+				log.Infof("events: %v", events)
+				for _, e := range events {
+					notifyCh <- eventToMessage(e)
+				}
+				events = make(map[string]fsnotify.Event)
+			}
+		}
+	}()
+
+	err = watcher.Add(directory)
+	if err != nil {
+		log.Fatal(err)
+	}
 	<-done
+}
+
+func eventToMessage(e fsnotify.Event) NotifyMessage {
+	if e.Op&fsnotify.Write == fsnotify.Write {
+		return NotifyMessage{
+			Operation: Modify,
+			FilePath:  e.Name,
+		}
+	} else if e.Op&fsnotify.Create == fsnotify.Create {
+		return NotifyMessage{
+			Operation: Create,
+			FilePath:  e.Name,
+		}
+	} else if e.Op&fsnotify.Remove == fsnotify.Remove || e.Op&fsnotify.Rename == fsnotify.Rename {
+		return NotifyMessage{
+			Operation: Remove,
+			FilePath:  e.Name,
+		}
+	}
+	return NotifyMessage{}
 }

@@ -7,7 +7,7 @@ services:
       - "--config-path /etc/envoy/envoy.yaml"
       - "--log-level info"
     volumes:
-      - ./proxy.yaml:/etc/envoy/envoy.yaml
+      - ./examples/envoy-xds-ratelimit.yaml:/etc/envoy/envoy.yaml
     networks:
       - xds-network
     expose:
@@ -20,7 +20,7 @@ services:
     image: xds:latest
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: ./Dockerfile
     expose:
       - "18000"
       - "18001"

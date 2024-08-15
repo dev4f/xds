@@ -24,10 +24,13 @@ import (
 	"gopkg.in/yaml.v3"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 	"xDS/internal/observer"
 	"xDS/internal/xdscache"
 )
+
+var mutex sync.Mutex
 
 var unmarshalOptions = protojson.UnmarshalOptions{
 	DiscardUnknown: false,
@@ -38,6 +41,7 @@ type Processor struct {
 	cache    cache.SnapshotCache
 	nodeID   string
 	xdsCache xdscache.XDSCache
+	version  int64
 }
 
 func NewProcessor(cache cache.SnapshotCache, nodeID string) *Processor {
@@ -47,7 +51,14 @@ func NewProcessor(cache cache.SnapshotCache, nodeID string) *Processor {
 		xdsCache: xdscache.XDSCache{
 			Data: make(map[string][]types.Resource),
 		},
+		version: time.Now().Unix(),
 	}
+}
+
+func (p *Processor) incrVersion() {
+	mutex.Lock()
+	defer mutex.Unlock()
+	p.version++
 }
 
 // ProcessFile takes a file and generates an xDS snapshot
@@ -74,13 +85,15 @@ func (p *Processor) ProcessFile(msg observer.NotifyMessage) {
 		resource.RouteType:           p.xdsCache.Rds(),
 		resource.RateLimitConfigType: p.xdsCache.Rls(),
 	}
-	version := strconv.FormatInt(time.Now().Unix(), 10)
+	p.incrVersion()
+	version := strconv.FormatInt(p.version, 10)
 	snapshot, _ := cache.NewSnapshot(version, resources)
 	if err := snapshot.Consistent(); err != nil {
 		log.Errorf("snapshot inconsistency: %+v\n\n\n%+v", snapshot, err)
 		return
 	}
 	s, _ := json.Marshal(snapshot)
+	log.Infof("serve new snapshot: %s", version)
 	log.Debugf("will serve snapshot %+v", string(s))
 
 	err := p.cache.SetSnapshot(context.Background(), p.nodeID, snapshot)
