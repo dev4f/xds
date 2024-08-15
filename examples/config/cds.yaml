@@ -1,18 +1,4 @@
 ---
-name: mock_cluster
-connect_timeout: 0.25s
-lb_policy: ROUND_ROBIN
-type: STRICT_DNS
-load_assignment:
-  cluster_name: mock_cluster
-  endpoints:
-    - lb_endpoints:
-        - endpoint:
-            address:
-              socket_address:
-                address: mock
-                port_value: 80
----
 name: ratelimit
 connect_timeout: 0.25s
 lb_policy: ROUND_ROBIN
